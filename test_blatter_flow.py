@@ -26,7 +26,7 @@ except ImportError:
 
 SPY = 365.25 * 24 * 3600   # seconds per year
 
-# ── Shared synthetic geometry (uniform slope, same length as Arolla) ──────────
+# Shared synthetic geometry: uniform slope, same length as Arolla
 NX    = bf.NX
 L     = 3800.0
 x     = np.linspace(0.0, L, NX)
@@ -35,7 +35,7 @@ ALPHA = 0.08                        # rad ≈ 4.6°
 DBDX  = np.full(NX, np.sin(ALPHA))  # uniform bed slope
 
 
-# ── 1. Röthlisberger channel radius and Engelund-Hansen capacity ──────────────
+# Röthlisberger channel radius and Engelund-Hansen capacity
 def test_rothlisberger_channel():
     """
     At the terminus the transport capacity must match the Engelund-Hansen
@@ -63,7 +63,7 @@ def test_rothlisberger_channel():
                                 err_msg="Terminal transport capacity mismatch")
 
 
-# ── 2. Fluvial transport — supply-limited ─────────────────────────────────────
+# Fluvial transport: supply-limited
 def test_fluvial_supply_limited():
     """
     When capacity >> supply (large Q_w, fine grains), the cumulative channel
@@ -86,7 +86,7 @@ def test_fluvial_supply_limited():
     np.testing.assert_allclose(Q_s_fl[1:], Q_supply[1:], rtol=1e-10)
 
 
-# ── 3. Fluvial transport — transport-limited ──────────────────────────────────
+# Fluvial transport: transport-limited
 def test_fluvial_transport_limited():
     """
     When supply >> capacity (high velocity, coarse grains, low Q_w), the
@@ -103,7 +103,7 @@ def test_fluvial_transport_limited():
         Q_s_fl, np.minimum(Q_s_cap, Q_s_sup), rtol=1e-12)
 
 
-# ── 4. Till shielding — transport-limited: closed-form H_till ────────────────
+# Till shielding, transport-limited: closed-form H_till
 def test_till_shielding_transport_limited():
     """
     For uniform u_b and negligible Q_s_cap, the till thickness and shielding
@@ -130,7 +130,7 @@ def test_till_shielding_transport_limited():
     np.testing.assert_allclose(shield, s_expected,  rtol=1e-6)
 
 
-# ── 5. Till shielding — supply-limited: no till, no shielding ────────────────
+# Till shielding, supply-limited: no till, no shielding
 def test_till_shielding_supply_limited():
     """
     When Q_s_cap >> production, no till accumulates (H_till = 0) and the
@@ -143,7 +143,7 @@ def test_till_shielding_supply_limited():
     np.testing.assert_allclose(shield, 1.0, atol=1e-10)
 
 
-# ── 6. Dispersed layer — exponential steady state ─────────────────────────────
+# Dispersed layer: exponential steady state
 def test_dispersed_layer_steady_state():
     """
     For constant u_b = u₀ and constant e_dot = e₀, the 1-D steady-state
@@ -178,7 +178,7 @@ def test_dispersed_layer_steady_state():
         f"Dispersed-layer steady state deviates {rel_err*100:.3f} % (threshold 5 %)"
 
 
-# ── 7. Coupled solve — supply-limited everywhere ──────────────────────────────
+# Coupled solve: supply-limited everywhere
 def test_coupled_solve_supply_limited():
     """
     With enormous capacity (large Q_w, fine grains):
@@ -208,7 +208,7 @@ def test_coupled_solve_supply_limited():
                                 err_msg="Per-node flux increment must equal fresh supply")
 
 
-# ── 8. Coupled solve — transport-limited nodes at capacity ────────────────────
+# Coupled solve: transport-limited nodes at capacity
 def test_coupled_solve_transport_limited_at_capacity():
     """
     At every transport-limited node (where supply >> capacity), Q_s_fl must
@@ -229,7 +229,7 @@ def test_coupled_solve_transport_limited_at_capacity():
     assert np.all(Q_s_fl >= 0.0), "Q_s_fl must be non-negative everywhere"
 
 
-# ── 9. BP shooter — Weertman BC and stress-free surface (slow) ───────────────
+# BP shooter: Weertman BC and stress-free surface (slow)
 @_slow
 def test_shoot_convergence_and_weertman_bc():
     """
@@ -272,7 +272,7 @@ def test_shoot_convergence_and_weertman_bc():
         "Mean surface velocity must exceed mean basal velocity"
 
 
-# ── Runner ────────────────────────────────────────────────────────────────────
+# Runner
 _FAST = [
     test_rothlisberger_channel,
     test_fluvial_supply_limited,

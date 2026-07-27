@@ -758,6 +758,7 @@ def run_glacier_diagnostics(d_grain=D_GRAIN, tag=None):
                  fontsize=10)
     plt.tight_layout()
     plt.savefig(OUT_DIR / f'glacier_diagnostics_{tag}.png', dpi=150, bbox_inches='tight')
+    plt.savefig(OUT_DIR / f'glacier_diagnostics_{tag}.pdf', bbox_inches='tight')
     plt.show(block=False)
 
 
@@ -858,6 +859,7 @@ def compare_glaciers():
         fontsize=9)
     plt.tight_layout()
     plt.savefig(OUT_DIR / 'glacier_comparison.png', dpi=150, bbox_inches='tight')
+    plt.savefig(OUT_DIR / 'glacier_comparison.pdf', bbox_inches='tight')
     plt.show(block=False)
     print('Comparison figure saved.')
 
@@ -939,6 +941,7 @@ def qw_sensitivity():
                  'dots mark each glacier at its own real $Q_w$', fontsize=10)
     plt.tight_layout()
     plt.savefig(OUT_DIR / 'qw_sensitivity.png', dpi=150, bbox_inches='tight')
+    plt.savefig(OUT_DIR / 'qw_sensitivity.pdf', bbox_inches='tight')
     plt.show(block=False)
     print('Qw sensitivity figure saved.')
 
