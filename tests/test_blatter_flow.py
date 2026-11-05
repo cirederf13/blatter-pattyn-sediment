@@ -1,18 +1,7 @@
-"""
-Analytical verification tests for blatter_flow.py.
+"""Analytical verification tests for blatter_flow.py: simple uniform inputs with known answers.
 
-Each test constructs a simple, uniform input for which the exact answer is
-known, runs the corresponding function, and checks the result against the
-analytical solution.
-
-Run without pytest:
-    python tests/test_blatter_flow.py          # fast tests only (< 5 s)
-    python tests/test_blatter_flow.py --slow   # include BP-solver convergence test
-
-Run with pytest:
-    python -m pytest tests/test_blatter_flow.py -v
-    python -m pytest tests/test_blatter_flow.py -v -m "not slow"
-"""
+    python tests/test_blatter_flow.py [--slow]    (--slow adds the BP-solver convergence test)
+    python -m pytest tests/test_blatter_flow.py -v"""
 import sys
 from pathlib import Path
 import numpy as np
@@ -37,18 +26,8 @@ ALPHA = 0.08                        # rad ≈ 4.6°
 DBDX  = np.full(NX, np.sin(ALPHA))  # uniform bed slope
 
 
-# Röthlisberger channel radius and Engelund-Hansen capacity
 def test_rothlisberger_channel():
-    """
-    At the terminus the transport capacity must match the Engelund-Hansen
-    formula applied analytically at Q_w = Q_w_total.
-
-    Channel radius (Manning):  r = (2^{5/3} n Q_w / (π √S))^{3/8}
-    Shields number:             θ = ρ_w R_h S / ((ρ_s − ρ_w) d)
-    Engelund-Hansen:            Φ = 0.05 (θ − θ_c)^{5/2}
-    Volume flux:                q_s = Φ √((ρ_s/ρ_w − 1) g d³)
-    Mass capacity (kg/yr):      Q_s^cap = ρ_s q_s 2r SPY
-    """
+    """At the terminus the capacity equals the Engelund-Hansen formula applied analytically at Q_w = Q_w_total."""
     Q_w_total = 10.0
     d = 0.01
     _, Q_s_cap, _ = bf.fluvial_transport(
@@ -65,17 +44,8 @@ def test_rothlisberger_channel():
                                 err_msg="Terminal transport capacity mismatch")
 
 
-# Fluvial transport: supply-limited
 def test_fluvial_supply_limited():
-    """
-    When capacity >> supply (large Q_w, fine grains), the cumulative channel
-    flux must equal the cumulative erosional supply at every node:
-        Q_s_fl[i] = (1 − α_d) ρ_R ė W Σ_{j≤i} Δx
-
-    Node 0 is excluded: water discharge Q_w(0) = 0 by construction (discharge
-    accumulates downstream), so the channel has zero capacity there regardless
-    of Q_w_total.
-    """
+    """When capacity >> supply the cumulative channel flux equals the cumulative erosional supply at every node except node 0, where Q_w = 0."""
     u_b   = np.full(NX, 5.0)
     e_dot = bf.K_G * np.abs(u_b)**bf.L_EXP
 
@@ -88,7 +58,6 @@ def test_fluvial_supply_limited():
     np.testing.assert_allclose(Q_s_fl[1:], Q_supply[1:], rtol=1e-10)
 
 
-# Fluvial transport: transport-limited
 def test_fluvial_transport_limited():
     """
     When supply >> capacity (high velocity, coarse grains, low Q_w), the
@@ -132,17 +101,9 @@ def test_fluvial_transport_limited():
 # Full budget closes with Da_sed = 1 when nothing accumulates
 
 
-# Hydrology: Darcy consistency, pressure bounds, unpressurised limit
 def test_hydrology_darcy_consistency_and_bounds():
-    """
-    On a uniform slab the steady sheet solution must satisfy, node by node,
-      (i)  Darcy's law  q = K h³ (phi_i − phi_{i+1})/dx  with h = h(N),
-      (ii) 0 <= p_w <= p_i  (atmospheric floor, overburden ceiling only
-           violated where the sheet cannot pass q, which this slab avoids),
-      (iii) S_hyd >= 0 and phi decreasing downstream.
-    A very large discharge must pressurise the sheet (p_w > 0 somewhere);
-    a tiny discharge must leave it unpressurised (p_w = 0, S_hyd = bed slope).
-    """
+    """On a uniform slab the sheet satisfies Darcy's law node by node, 0 <= p_w <= p_i, S_hyd >= 0 and phi decreasing downstream.
+    A very large discharge pressurises the sheet and a tiny one leaves it unpressurised (S_hyd = bed slope)."""
     b   = -x * np.sin(ALPHA)
     hb  = np.full(NX, 150.0)
     u_b = np.full(NX, 30.0)
@@ -162,13 +123,8 @@ def test_hydrology_darcy_consistency_and_bounds():
     np.testing.assert_allclose(S2[:-1], np.sin(ALPHA), rtol=1e-9)
 
 
-# Frozen fringe: entry threshold and monotonic response
 def test_fringe_regimes():
-    """
-    No fringe forms below the entry pressure p_f, nor for N <= 0.  Above it
-    the steady fringe thickens with effective pressure and thins with basal
-    melt rate, and the returned theta is consistent with the thickness.
-    """
+    """No fringe forms below the entry pressure or for N <= 0; above it the fringe thickens with effective pressure and thins with basal melt."""
     m = 0.05
     assert bf.fringe_steady_thickness(0.0, m) == (0.0, 1.0)
     assert bf.fringe_steady_thickness(0.5 * bf.P_FRINGE, m)[0] == 0.0
@@ -184,15 +140,8 @@ def test_fringe_regimes():
     np.testing.assert_allclose(V_n * num / den, -m / bf.SPY, rtol=1e-6)
 
 
-# Supercooling: energy balance on a synthetic pressure field
 def test_supercooling_energy_balance():
-    """
-    Build p_w and phi by hand: a normal reach where the potential falls
-    faster than the water pressure (dissipation exceeds the warming demand,
-    no freeze-on) followed by an adverse reach where p_w drops much faster
-    than phi (supercooled).  The freeze-on rate must be zero in the first
-    reach and equal (P_req − P_diss)/(L rho_i W) in the second.
-    """
+    """A normal reach has no freeze-on; an adverse reach where p_w drops faster than phi freezes on at (P_req - P_diss)/(L rho_i W)."""
     n   = NX
     b   = np.where(x < L / 2, -0.1 * x, -0.1 * L / 2 + 0.3 * (x - L / 2))   # adverse 2nd half
     phi = 1e7 - 50.0 * x                                                  # Pa, falls along flow; p_w stays > 0
@@ -211,14 +160,8 @@ def test_supercooling_energy_balance():
     np.testing.assert_allclose(m_fr[second][:-1], expect[second][:-1], rtol=1e-9)
 
 
-# Sheet capacity where channels are frozen shut: grain-size selective
 def test_sheet_capacity_is_grain_size_selective():
-    """
-    With the velocity-based stress (F_DW/8) rho_w (q/h)^2, a typical
-    supercooled-reach sheet (q = 0.014 m²/s, h = 0.08 m, tau ~ 0.4 Pa)
-    carries silt but not sand or gravel; capacity falls monotonically with
-    grain size and is zero once tau < tau_c.
-    """
+    """In a supercooled-reach sheet (q = 0.014 m^2/s, h = 0.08 m) silt is carried, sand and gravel are not, and the capacity falls with grain size."""
     # q chosen so that the sheet velocity q/(F_SHEET h) = 0.18 m/s, tau = 0.4 Pa
     q, h = np.full(3, 1.43e-3), np.full(3, 0.08)
     caps = [bf.sheet_transport_capacity(q, h, d)[0] for d in (63e-6, 1e-3, 1e-2)]
@@ -228,16 +171,9 @@ def test_sheet_capacity_is_grain_size_selective():
     assert 0.1 < tau < 1.0
 
 
-# Suspended channel load is not available to basal ice
 def test_basal_ice_takes_only_bed_sediment():
-    """
-    Where the channel-borne load travels in suspension (Rouse number below
-    ROUSE_SUSP in the R-channel), fringe uptake plus freeze-on accretion at
-    a node cannot exceed the bed pool: local erosion products, till arriving
-    by deformation, dispersed melt-out and fringe release.  With u_b = 0
-    over the lower half of the slab there is no local erosion there, so all
-    upstream channel load must pass and basal-ice uptake must be zero.
-    """
+    """Fringe uptake plus freeze-on at a node cannot exceed the bed pool; where u_b = 0 there is no local erosion, so the upstream
+    channel load passes and the basal-ice uptake is zero."""
     b   = -x * np.sin(ALPHA)
     hb  = np.full(NX, 150.0)
     u_b = np.where(x < L / 2, 40.0, 0.0)
@@ -256,13 +192,8 @@ def test_basal_ice_takes_only_bed_sediment():
     np.testing.assert_allclose(gain, rel, rtol=1e-9, atol=1e-6)
 
 
-# Rouse criterion in the closed-channel sheet
 def test_sheet_capacity_rouse():
-    """
-    In the sheet (u* ~ 0.02 m/s) silt has Rouse number < 2.5 and passes with
-    no capacity limit; gravel is bedload with tau below threshold and is
-    deposited; the Ferguson-Church settling velocity is monotone in d.
-    """
+    """In the sheet silt has Rouse number < 2.5 and passes freely, gravel is deposited, and the settling velocity is monotone in grain size."""
     q, h = np.full(2, 1.43e-3), np.full(2, 0.08)
     cap_silt   = bf.sheet_transport_capacity(q, h, 63e-6)[0]
     cap_gravel = bf.sheet_transport_capacity(q, h, 1e-2)[0]
@@ -271,13 +202,8 @@ def test_sheet_capacity_rouse():
     assert np.all(np.diff(ws) > 0) and 1e-3 < ws[0] < 5e-3
 
 
-# Prescribed water-pressure fraction controls the fringe, not the budget
 def test_prescribed_fw_thins_fringe_and_conserves():
-    """
-    Raising f_w lowers the fringe effective pressure and must thin the
-    equilibrium fringe everywhere; the sediment budget stays closed and the
-    sheet hydrology (N, S_hyd) is unaffected by f_w.
-    """
+    """Raising f_w thins the equilibrium fringe everywhere, the budget stays closed and the sheet hydrology is unaffected."""
     b   = -x * np.sin(ALPHA)
     hb  = 60.0 + 90.0 * np.sin(np.pi * x / L)
     u_b = 5.0 + 45.0 * np.sin(np.pi * x / L)**2
@@ -294,13 +220,8 @@ def test_prescribed_fw_thins_fringe_and_conserves():
         assert abs(res) / bud['Q_ero'] < 1e-9
 
 
-# Full steady routing: node-wise sediment conservation with all pathways
 def test_steady_routing_conserves_sediment():
-    """
-    Flux leaving node i (channel + deformation + fringe + dispersed +
-    accumulation) equals flux entering plus local shielded erosion, for
-    every node in the budget domain, and the integrated budget closes.
-    """
+    """At every node of the budget domain the flux leaving equals the flux entering plus the local shielded erosion, and the integrated budget closes."""
     b   = -x * np.sin(ALPHA)
     hb  = 60.0 + 90.0 * np.sin(np.pi * x / L)
     u_b = 5.0 + 45.0 * np.sin(np.pi * x / L)**2
@@ -321,7 +242,6 @@ def test_steady_routing_conserves_sediment():
         np.testing.assert_allclose(bud['Da'], 1.0, rtol=1e-9)
 
 
-# Solver guards: non-convergence must raise, not return silently
 def test_newton_sigma_raises_on_nonconvergence():
     """
     With zero iterations the residual of a non-trivial problem cannot be below
@@ -361,29 +281,11 @@ def test_shoot_raises_on_nonconvergence():
         bf.MAXITER = old
 
 
-# BP shooter: Weertman BC and stress-free surface (slow)
 @_slow
 def test_shoot_convergence_and_weertman_bc():
-    """
-    For a synthetic uniform-slope slab (α ≈ 11.5°, H = 200 m):
-
-    (a) Convergence: the stress-free surface BC is satisfied to within TKRIT,
-        confirming that the Anderson-accelerated shooter found the correct
-        basal-stress field.
-
-    (b) Weertman BC consistency: inside every iteration the code sets
-            U[:,0] = C_slide |τ[:,0]|^{M−1} τ[:,0]
-        so U[:,0] and τ[:,0] are algebraically consistent at return.
-
-    (c) Internal deformation: mean surface velocity > mean basal velocity
-        because integrating the flow law adds a deformational component.
-
-    Resolution criterion: the upward σ-integration of the shooter converges
-    only for H/Δx ≲ 2 (68 iterations at H/Δx = 1.0, 688 at 2.1, no
-    convergence at ≥ 3; the three real glaciers have H/Δx ≤ 2.2).  The slab
-    is therefore placed on a 15 km grid (Δx ≈ 192 m, H/Δx ≈ 1.0); see
-    test_slab_converges_at_high_aspect_ratio for the documented failure.
-    """
+    """On a uniform slab (11.5 degrees, H = 200 m) the shooter satisfies the stress-free surface condition within TKRIT, the Weertman
+    law holds at the base and the surface is faster than the base.  The shooter converges only for H/dx <~ 2, so the slab is placed
+    on a 15 km grid; see test_slab_converges_at_high_aspect_ratio."""
     sin_a  = 0.2        # ≈ 11.5°; driving stress 3.5 bar, u_b ≈ 215 m/yr
     H_s    = 200.0
     x_s    = np.linspace(0.0, 15000.0, NX)
@@ -419,11 +321,7 @@ def test_shoot_convergence_and_weertman_bc():
 
 @_slow
 def test_slab_converges_at_high_aspect_ratio():
-    """
-    A uniform 200 m slab on the 3.8 km grid (H/dx = 4.1) is solved exactly with the
-    zero-gradient end conditions (real geometries with bed roughness still need
-    H/dx below about 3).
-    """
+    """A uniform 200 m slab on the 3.8 km grid (H/dx = 4.1) is solved exactly with zero-gradient end conditions."""
     sin_a  = 0.2
     b_slab = -x * sin_a
     h_slab = 200.0 + b_slab

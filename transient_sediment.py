@@ -19,8 +19,7 @@ import numpy as np
 import blatter_flow as bf
 
 
-H_TERM = 5.0      # m; ice thinner than this traps sediment progressively less (weight hb/H_TERM), none at the margin and on the foreland: the margin nodes of a retreating
-                  # glacier otherwise throttle the gravel export for single years by their tiny capacity
+H_TERM = 5.0      # m; ice thinner than this traps sediment less (weight hb/H_TERM), none at the margin
 
 
 class RefinedView:
@@ -39,9 +38,7 @@ class RefinedView:
         ip = lambda a: np.interp(self.x, g.x, a)
         self.W = g.W
         self.hb, self.b, self.dbdx = ip(g.hb), ip(g.b), ip(g.dbdx)
-        # sub-node terminus: the last ice node thins continuously, so extend the upstream surface slope to the
-        # zero-thickness crossing instead of interpolating to the next (ice-free) node, which would give the
-        # margin a long flat tail (no hydraulic gradient, collapsed channel capacity) whenever that node is thin
+        # sub-node terminus: extend the upstream surface slope to the zero-thickness crossing instead of the next ice-free node
         ice_nodes = np.nonzero(g.hb > 0.0)[0]
         j = ice_nodes[-1] if len(ice_nodes) else 0
         if 1 <= j < n - 1:
@@ -113,8 +110,7 @@ def sediment_step(st, g, Qw, d_grain, dt=1.0, f_w=bf.F_W):
     n = len(x)
     u_b = np.abs(g.U[:, 0]); hb = g.hb; b = g.b
     ice = hb > 1.0
-    # ---- rates for the current geometry (steady routing gives capacities,
-    #      hydrology, fringe equilibrium, freeze-on, basal melt)
+    # ---- rates for the current geometry (capacities, hydrology, fringe equilibrium, freeze-on, basal melt)
     r = bf.steady_routing(u_b, Qw, g.dbdx, dx, x, hb, b, d_grain=d_grain,
                           W=W, c_slide=g.c_slide, f_w=f_w)
     Q_cap, m_fr, m_net = r['Q_cap'], r['m_freeze'], r['m_basal'] - r['m_freeze']
@@ -150,8 +146,7 @@ def sediment_step(st, g, Qw, d_grain, dt=1.0, f_w=bf.F_W):
             flux[it + 1:] = 0.0; fs[it + 1:] = 0.0        # nothing moves beyond the terminus
             Mn = M - flux; Mn[1:] += flux[:-1]
             Ms = M * s - fs; Ms[1:] += fs[:-1]
-            # basal ice reaching the terminus melts out into the proglacial stream (the steady budget's
-            # 'fringe/dispersed outlet'), it is not left behind on the foreland
+            # basal ice reaching the terminus melts out into the stream, not onto the foreland
             if it < n - 1:
                 Mn[it + 1] -= flux[it]; Ms[it + 1] -= fs[it]
                 out_total += flux[it]; out_stored += fs[it]
@@ -224,8 +219,7 @@ def sediment_step(st, g, Qw, d_grain, dt=1.0, f_w=bf.F_W):
         Q_in, s_in = take, s_take
         Q_def_in, s_def_in = Q_def, s_take
 
-    # terminus convention (as in budget_from_routing): the budget domain is
-    # nodes 0..n-2; whatever the pass left on the terminal node is exported
+    # terminus convention as in budget_from_routing: the budget domain is nodes 0..n-2 and the rest is exported
     Q_fl_out = exp_tail / dt; s_out = exp_tail_s / max(exp_tail, 1e-30)
     # basal ice arriving at the terminal node by advection is exported too
     tail = st.M_f[-1] + st.M_d[-1]; tail_s = st.M_f[-1] * st.s_f[-1] + st.M_d[-1] * st.s_d[-1]

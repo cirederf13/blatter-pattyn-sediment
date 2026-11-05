@@ -20,7 +20,7 @@ plt.rcParams['font.size'] = 18
 
 _HERE    = Path(__file__).parent
 DATA_DIR = _HERE / 'data'
-OUT_DIR  = _HERE / 'output'           # transient runs (.npz)
+OUT_DIR  = _HERE / 'output'
 FIG_DIR  = _HERE / 'figures'
 CACHE_DIR = _HERE / '_cache'          # cached Blatter-Pattyn solutions
 INV_DIR  = DATA_DIR / 'inverted'      # sliding coefficient and shape factor inverted from observed velocities
@@ -34,16 +34,13 @@ QW_FJ     = 50.0    # annual-mean water discharge (m^3/s), Franz Josef Glacier (
 QW_GORNER = 7.0     # Gornergletscher (De Doncker et al. 2026)
 QW_REF    = 3.0     # Haut Glacier d'Arolla (Swift et al. 2005)
 
-# Width (m), number of nodes along the flowline, shape factor f on the driving stress and Weertman
-# coefficient C_s (m yr^-1 bar^-m).  Widths are area / flowline length, except Franz Josef Glacier, where
-# the measured width profile (Herman et al. 2015) is weighted by the erosion.  The shooting method
-# converges for H/dx <~ 2.3 (Section 4.1), which sets the number of nodes.
+# Width (m), number of nodes, shape factor f and Weertman coefficient C_s (m yr^-1 bar^-m) per glacier;
+# the number of nodes follows from H/dx <~ 2.3 for convergence of the shooting method (Section 4.1).
 W_AROLLA, W_FJ, W_GORNER    = 1660.0, 3310.0, 3390.0
 NX_AROLLA, NX_FJ, NX_GORNER = 49, 79, 79
 SHAPE_AROLLA, SHAPE_FJ, SHAPE_GORNER = 1.0, 0.6, 1.0
 CS_AROLLA, CS_FJ, CS_GORNER = 5.0, 10.8, 5.0
-# At Franz Josef Glacier and Gornergletscher C_s(x) and f(x) are inverted from the observed surface
-# velocities (invert_fj_velocity.py, invert_gorner_velocity.py) and read from data/inverted/.
+# Franz Josef Glacier and Gornergletscher: C_s(x) and f(x) inverted from observed velocities (invert_*_velocity.py).
 if (INV_DIR / 'franzjosef_Cs_f.npy').exists():
     CS_FJ, SHAPE_FJ = np.load(INV_DIR / 'franzjosef_Cs_f.npy')
 if (INV_DIR / 'gorner_Cs_f.npy').exists():
@@ -52,7 +49,7 @@ if (INV_DIR / 'gorner_Cs_f.npy').exists():
 RHO_G   = 900.0 * 9.81 * 1e-5   # bar/m
 A_RATE  = 0.08                    # bar^-3 yr^-1
 N_GL    = 3.0
-T0      = 1e-3                    # bar^2, viscosity regularisation; biases the deformation velocity by ~2 T0/tau_d^2
+T0      = 1e-3                    # bar^2, viscosity regularisation
 BETA    = 0.004                   # shooting relaxation (fallback / Anderson damping)
 TKRIT   = 1e-3                    # convergence criterion
 MAXITER = int(1e5)
@@ -63,8 +60,7 @@ AA_REG  = 1e-4                    # Tikhonov regularisation for Anderson lstsq
 C_SLIDE = 5.0                     # Weertman coefficient (m yr^-1 bar^-m)
 M_SLIDE = 3                       # Weertman exponent
 
-# Erosion rule e = K_g |u_b|^l with K_g (m^(1-l) yr^(l-1)) calibrated for each glacier at l = 2 to the
-# observed steady 63 um fluvial export (calibrate_kg.py); the exponent l is varied in the sensitivity tests.
+# Erosion rule e = K_g |u_b|^l; K_g (m^(1-l) yr^(l-1)) is calibrated per glacier at l = 2 (calibrate_kg.py).
 K_G        = 2.17e-7
 L_EXP      = 2.0
 K_G_DEFAULT = K_G
@@ -79,12 +75,8 @@ def use_glacier(key):
     L_EXP = L_BY_LOADER.get(key, L_DEFAULT)
 H_TILL_REF = 0.5                   # e-folding till thickness for bedrock shielding (m)
 SHIELD_MIN = 0.1                   # minimum shielding factor (residual bedrock wear under thick till)
-# Q_deform = C_DEF_TILL * τ_b * min(H_till, H_DEF_MAX) * W * ρ_B
-# (Boulton & Hindmarsh 1987).  Field range 0.1–5 m yr⁻¹ bar⁻¹.  Deformation is
-# confined to the upper H_DEF_MAX of the till column (Truffer et al. 2000;
-# Hansen & Zoet 2022), so Q_deform saturates and a node whose shielded supply
-# exceeds channel capacity + saturated deformation is a genuine sink
-# (reported as Q_accum, till growing, not at steady state).
+# Till deformation flux Q = C_DEF_TILL tau_b min(H_till, H_DEF_MAX) W rho_B (Boulton and Hindmarsh 1987), saturating
+# in H_till (Truffer et al. 2000; Hansen and Zoet 2022). Field range of C_DEF_TILL is 0.1-5 m yr^-1 bar^-1.
 C_DEF_TILL = 1.0                   # till deformation coefficient [m yr⁻¹ bar⁻¹]
 H_DEF_MAX  = 0.5                   # max deforming till thickness (m)
 H_TILL_TRAP = 10.0                 # nominal H_till reported at a trapping node (m)
@@ -96,24 +88,18 @@ W_GL    = 500.0                   # glacier width (m), constant
 
 # Dispersed sediment layer (storage model, Pierce et al. 2026)
 C_D      = 0.03    # dispersed layer sediment mass fraction
-ALPHA_D  = 0.1     # fraction of eroded material entering dispersed layer
+ALPHA_D  = 0.1     # legacy, used only in the supply term of fluvial_transport
 
 # Subglacial fluvial transport (Engelund-Hansen / Delaney et al. 2019 JGR-ES)
 D_GRAIN  = 0.01     # coarse reference grain diameter (m): fine gravel / bedload
-D_FINE   = 63e-6    # fine reference grain diameter (m): silt/sand boundary (Wentworth),
-                    # representative of the suspended fraction retained by 0.22 um
-                    # filtration in the Franz Josef / Gornergletscher field campaigns
+D_FINE   = 63e-6    # fine reference grain diameter (m), silt/sand boundary
 RHO_W    = 1000.0  # water density (kg m^-3)
 RHO_SED  = 2650.0  # sediment grain density (kg m^-3), quartz
 N_MANN   = 0.03    # Manning roughness (m^{-1/3} s), subglacial R-channel
 THETA_C  = 0.047   # critical Shields parameter for motion initiation
 
-# ---------------------------------------------------------------------------
-# Effective-pressure hydrology, frozen fringe and regelation (SI units inside
-# the functions that use them).  Parameter values follow Pierce et al. (2026,
-# Nat. Commun., Table 1 and released code v1.3), which in turn follow Meyer
-# et al. (2019 EPSL; 2023 JFM) for the fringe and Werder et al. (2013) /
-# Hill et al. (2023) for the distributed drainage sheet.
+# Effective-pressure hydrology, frozen fringe and regelation (SI units inside the functions that use them);
+# parameters after Pierce et al. (2026), Meyer et al. (2019, 2023), Werder et al. (2013) and Hill et al. (2023).
 SPY      = 365.25 * 24 * 3600   # seconds per year
 G_ACC    = 9.81                 # m s^-2
 G_GEO    = 0.06                 # geothermal heat flux (W m^-2)
@@ -130,37 +116,22 @@ D_FILM   = 1e-8                 # premelted film thickness (m)
 ALPHA_F  = 3.1                  # fringe permeability exponent
 BETA_F   = 0.53                 # fringe saturation exponent
 Z_STAR   = 100.0                # characteristic depth of the temperate layer (m)
-D_FRINGE_FULL = 0.5e-3           # grains up to this size are taken up by the fringe at full efficiency (m);
-                                 # the efficiency falls linearly in log D to zero at D_FRINGE_MAX
-D_FRINGE_MAX = 2e-3             # largest grain the frozen fringe can infiltrate (m): sand and
-                                # finer; coarser clasts enter basal ice only by freeze-on
+D_FRINGE_FULL = 0.5e-3           # full-efficiency fringe uptake up to this grain size (m)
+D_FRINGE_MAX = 2e-3             # largest grain the fringe can take up (m)
 P_FRINGE = 2.0 * GAMMA_IW / R_PORE                       # fringe entry pressure (Pa) = 68 kPa
 T_FRINGE = T_MELT - P_FRINGE * T_MELT / (RHO_ICE * L_FUS)  # fringe base temperature (K)
-# Distributed drainage (linked cavities, laminar sheet).  Cavity geometry from
-# Werder et al. (2013, GlaDS) as used for Alpine glaciers; Pierce et al. use
-# h_r = 1 m for the Greenland ice sheet, which leaves an Alpine sheet
-# unpressurised at annual-mean discharge (p_w ≈ 0 everywhere).
+# Distributed drainage (linked cavities, laminar sheet); cavity geometry after Werder et al. (2013).
 K_SHEET  = 0.05                 # sheet conductivity, q = -K_SHEET h^3 dphi/dx (m^2/s with phi in Pa)
 H_BUMP   = 0.1                  # bed bump height / max cavity size (m), Werder et al. 2013
-L_BUMP   = 10.0                 # cavity spacing (m), Pierce et al. 2026; gives annual-mean
-                                # p_w/p_i of 0.2-0.45 (max 0.9) at the three glaciers
+L_BUMP   = 10.0                 # cavity spacing (m), Pierce et al. 2026
 A_ICE_SI = 2.4e-24              # ice rate factor (Pa^-3 s^-1), closure of cavities
 # Glaciohydraulic supercooling (Röthlisberger & Lang 1987; Alley et al. 1998;
 # Creyts & Clarke 2010)
 C_W      = 4218.0               # specific heat of water (J kg^-1 K^-1)
 C_T      = 9.8e-8               # pressure dependence of the melting point, air-saturated (K Pa^-1)
-F_SHEET  = 0.1                  # fraction of the glacier width carrying sediment in the
-                                # distributed sheet where channels are frozen shut
-F_DW     = 0.1                  # Darcy-Weisbach friction factor of the sheet flow: bed shear
-                                # stress tau = (F_DW/8) rho_w u^2 with u = q/h (turbulent,
-                                # Re ~ 1e4); head loss in a cavity network is in the orifices,
-                                # so rho_w g h S is not the stress on the bed
-# Water-pressure level for the frozen fringe.  The steady cavity sheet gives
-# the gradient needed to pass the annual-mean flux, but its absolute pressure
-# depends on three poorly known parameters; boreholes at Haut Glacier
-# d'Arolla and Gornergletscher give p_w/p_i ~ 0.8-0.9 (summer and winter).
-# F_W prescribes p_w = F_W p_i for the fringe effective pressure; None uses
-# the sheet model's N instead.
+F_SHEET  = 0.1                  # fraction of the width carrying sediment in the sheet where channels are frozen shut
+F_DW     = 0.1                  # Darcy-Weisbach friction factor of the sheet flow
+# Water-pressure level for the fringe, p_w = F_W p_i (boreholes give 0.8-0.9); None uses the sheet model's N.
 F_W      = 0.8
 
 NX = 79
@@ -177,13 +148,7 @@ FJ_END_FIT_M = 500.0
 
 
 def load_franzjosef():
-    """
-    Franz Josef Glacier flowline geometry (Anderson et al. 2014).
-
-    CSV: cols 0-1 = bedrock (x, z a.s.l.); col 2 = blank; cols 3-4 = ice surface (x, z).
-    Both profiles were digitised at different x positions.  Ice surface is interpolated
-    onto the bedrock x grid and returned for setup_geometry to resample to NX points.
-    """
+    """Franz Josef Glacier flowline (Anderson et al. 2010): bedrock and ice surface, the surface interpolated onto the bedrock grid."""
     data  = np.genfromtxt(FRANZJOSEF_FILE, delimiter=',', skip_header=1,
                           filling_values=np.nan)
     x_bed = data[:, 0]
@@ -199,8 +164,7 @@ def load_franzjosef():
     bb    = z_bed[keep]
     hh    = np.maximum(interp1d(x_ice, z_ice, kind='linear')(xx), bb)
     if FJ_END_BED_CORRECTION:
-        # the last ~220 m of the digitised bed rise (+13 m) to the end of the profile; continue the
-        # down-glacier trend of the preceding FJ_END_FIT_M instead
+        # the last ~220 m of the digitised bed rise; extrapolate the preceding down-glacier trend instead
         ib = int(np.argmin(bb))
         if ib < len(xx) - 1:
             sel = xx >= xx[ib] - FJ_END_FIT_M
@@ -233,10 +197,10 @@ def setup_geometry(xx, bb, hh, nx=None):
     dbdx = np.gradient(b, x)
 
     # the geometry factors C and d use the physical slopes at every node, including the ends
-    C = np.outer(dbdx, (1.0 - sig)) + np.outer(dhdx, sig)  # (NX, NZ)
-    d = dhdx - dbdx                                         # (NX,)
+    C = np.outer(dbdx, (1.0 - sig)) + np.outer(dhdx, sig)
+    d = dhdx - dbdx
 
-    Z_o = b[:, None] + np.outer(hb, sig)                    # (NX, NZ) real z
+    Z_o = b[:, None] + np.outer(hb, sig)
 
     return x, sig, dx, ds, b, h, hb, dhdx, dbdx, C, d, Z_o
 
@@ -255,15 +219,8 @@ def _sigma_residual(s, c, g, tau):
 
 
 def newton_sigma_vec(s, c, g, tau, n_iter=30, tol=NEWTON_TOL, strict=False):
-    """
-    Newton solve of the σ_xx compatibility condition at one vertical level.
-
-    Steps are clipped to ±0.5 bar and the result to ±5 bar: during the early
-    shooting iterations the basal-stress guess can be far from the solution
-    and the clip keeps the integration bounded.  With strict=True the final
-    residual is checked and a RuntimeError raised if any interior node is
-    above tol or sits on the clip; shoot() uses this on the converged state.
-    """
+    """Newton solve of the sigma_xx compatibility condition at one vertical level, with clipped steps.
+    With strict=True a RuntimeError is raised if any interior node fails to converge."""
     s = s.copy()
     for _ in range(n_iter):
         y, dy = _sigma_residual(s, c, g, tau)
@@ -321,13 +278,8 @@ def integrate(U, Sigma, Tau, hb, dhdx, d, C, ds, x, use_sigma=True, strict=False
 
 
 def anderson_update(x_hist, f_hist, x_k, f_k, m=AA_M, beta=BETA):
-    """
-    Anderson(m) acceleration for fixed-point x = g(x).
-    x_k : current iterate, f_k : residual r(x_k) that we want → 0.
-    Stores history in-place; returns the next iterate.
-    The Picard step is x - beta*r(x); Anderson finds the optimal
-    linear combination of the last m Picard steps.
-    """
+    """Anderson(m) acceleration of the fixed-point iteration x = g(x); x_k is the iterate and f_k its residual.
+    The history is stored in place and the next iterate is returned."""
     x_hist.append(x_k.copy())
     f_hist.append(f_k.copy())
     if len(x_hist) > m + 1:
@@ -338,8 +290,8 @@ def anderson_update(x_hist, f_hist, x_k, f_k, m=AA_M, beta=BETA):
     if mk == 0:
         return x_k - beta * f_k
 
-    dF = np.diff(np.column_stack(f_hist), axis=1)   # (NX, mk)
-    dX = np.diff(np.column_stack(x_hist), axis=1)   # (NX, mk)
+    dF = np.diff(np.column_stack(f_hist), axis=1)
+    dX = np.diff(np.column_stack(x_hist), axis=1)
 
     DtD = dF.T @ dF
     reg = AA_REG * (np.trace(DtD) / mk) * np.eye(mk)
@@ -383,10 +335,8 @@ def shoot(x, dx, ds, hb, dhdx, d, C, c_slide=C_SLIDE, shape=1.0, tau0=None, verb
             f'shoot did not converge in {MAXITER} iterations: '
             f'max |tau_xx(surface)| = {tmax:.3e} bar (TKRIT = {TKRIT})')
 
-    # Verification pass on the converged state: the Anderson update above has
-    # already advanced Tau[:, 0] past the iterate that produced `residual`, so
-    # re-integrate from the last accepted basal stress with strict Newton
-    # checks at every level.  This is the state that is returned.
+    # Verification pass: re-integrate from the last accepted basal stress with strict Newton checks;
+    # this is the state that is returned.
     Tau[:, 0]   = x_hist[-1]
     U[:, 0]     = c_slide * np.abs(Tau[:, 0])**(M_SLIDE - 1) * Tau[:, 0]
     Sigma[:, 0] = solve_sigma_row(Sigma[:, 0], C[:, 0], U[:, 0], x, Tau[:, 0], strict=True)
@@ -407,25 +357,11 @@ def shoot(x, dx, ds, hb, dhdx, d, C, c_slide=C_SLIDE, shape=1.0, tau0=None, verb
 def invert_sliding(loader, u_obs_x, u_obs, nx=None, shape=1.0, c0=C_SLIDE, n_iter=10,
                    smooth_m=500.0, tol=1.15, bounds=(0.3, 200.0), verbose=False,
                    f_min=None, hold_outside=False):
-    """
-    Invert a spatially variable Weertman coefficient C_s(x) so that the modelled
-    surface velocity matches an observed profile, by damped fixed-point
-    iteration C_s <- C_s (u_obs/u_model)^0.7, smoothed over `smooth_m`.
-    u_obs is interpolated onto the model grid from (u_obs_x, u_obs).  The
-    result is an *effective* coefficient: on a flowline it absorbs width
-    variation and flow convergence as well as bed properties.
-    If f_min is given, a lateral shape factor f(x) in [f_min, 1] is inverted
-    together with C_s: where the model is too fast, f is reduced first (lateral
-    drag slows deformation and sliding alike, u ~ C_s f^3), and C_s absorbs only
-    what f cannot; where it is too slow, f is restored to 1 first.
-    If hold_outside, the misfit is evaluated only between the first and last
-    observation, and C_s and f beyond that span are held at their values at the
-    nearest observation: the observed profile is otherwise extended as a constant
-    to the ends of the flowline, which forces the inversion to fit speeds nobody
-    measured (and oscillates where the ice is slow, e.g. the accumulation area).
-    Returns (C_s, f) as a tuple if f_min is given, else C_s, then the final
-    log-misfit factor and the converged solution.
-    """
+    """Invert the Weertman coefficient C_s(x) so that the modelled surface velocity matches the observed profile,
+    by damped fixed-point iteration C_s <- C_s (u_obs/u_model)^0.7 smoothed over smooth_m.
+    If f_min is given, a lateral shape factor f(x) in [f_min, 1] is inverted together with C_s.
+    If hold_outside, the misfit is evaluated only between the first and last observation.
+    Returns (C_s, f) if f_min is given, else C_s, then the log-misfit factor and the solution."""
     from scipy.ndimage import gaussian_filter1d
     xx, bb, hh = loader()
     x, sig, dx, ds, b, h, hb, dhdx, dbdx, C, d, Z_o = setup_geometry(xx, bb, hh, nx=nx)
@@ -467,15 +403,9 @@ _BP_FIELDS = ('x', 'sig', 'dx', 'ds', 'b', 'h', 'hb', 'dhdx', 'dbdx', 'C', 'd',
 
 
 def bp_solution(key, loader, c_slide=C_SLIDE, shape=1.0, nx=None):
-    """
-    Cached geometry + Blatter-Pattyn solve for a named glacier.  The shoot()
-    call dominates the runtime of every figure in this file, so results are
-    cached to CACHE_DIR and reused across plot-only re-runs.  The cache file
-    name carries the sliding coefficient; delete it (or the whole _cache/
-    directory) to force a recompute after changing other ice-flow parameters
-    or the input geometry.  Also selects the glacier's erosion coefficient
-    (use_glacier), so every solve-then-route sequence uses the right K_G.
-    """
+    """Cached geometry and Blatter-Pattyn solution for a named glacier, stored in CACHE_DIR with the sliding
+    coefficient in the file name (delete _cache/ after changing other ice-flow parameters).
+    Selects the glacier's K_G (use_glacier)."""
     use_glacier(key)
     if np.ndim(c_slide) > 0:
         import hashlib
@@ -503,43 +433,11 @@ def bp_solution(key, loader, c_slide=C_SLIDE, shape=1.0, nx=None):
 
 def fluvial_transport(Q_w_total, e_dot, dbdx, dx, x, d_grain=D_GRAIN, dhdx=None,
                       S_hyd=None):
-    """
-    Subglacial fluvial bedload transport (Delaney, Werder & Farinotti 2019, JGR-ES).
-
-    Engelund-Hansen formula applied to a Röthlisberger semicircular R-channel
-    whose geometry is determined by Manning's equation.
-
-    Water discharge accumulates linearly: Q_w(x) = Q_w_total * x / L.
-
-    Hydraulic slope:
-      default (dhdx=None): S = |∂b/∂x|  (bed slope only)
-      hydraulic potential  (dhdx provided): Shreve (1972) hydraulic head gradient
-          h_w = (1 - ρ_i/ρ_w) b + (ρ_i/ρ_w) h
-          S   = -dh_w/dx = -(1-ρ_i/ρ_w)·∂b/∂x - (ρ_i/ρ_w)·∂h/∂x
-      floored at 1e-4 in both cases (channels stall but do not reverse).
-      In overdeepenings S_hyd → 0, collapsing the transport capacity.
-
-    Channel radius from Manning:
-        Q_w = (1/n) * (π r²/2) * (r/2)^(2/3) * S^(1/2)
-        r   = (2^(5/3) * n * Q_w / (π √S))^(3/8)
-
-    Shields parameter:  θ = ρ_w R_h S / ((ρ_s - ρ_w) d)
-    Engelund-Hansen:    Φ = 0.05 (θ - θ_c)^(5/2),  q_s = Φ √((s-1) g d³)
-    Capacity (kg/yr):   Q_s^cap = ρ_s * q_s * 2r * SPY
-
-    Parameters
-    ----------
-    d_grain : grain diameter (m); controls Shields number and settling velocity
-    dhdx    : (NX,) ice-surface slope ∂h/∂x; if given, use Shreve hydraulic slope
-    S_hyd   : (NX,) hydraulic gradient from hydrology_1d (takes precedence)
-
-    Returns
-    -------
-    Q_s_fl  : (NX,) actual cumulative sediment flux (kg/yr) — min(cap, supply)
-    Q_s_cap : (NX,) transport capacity (kg/yr)
-    Q_s_sup : (NX,) erosional supply available to fluvial system (kg/yr)
-    """
-    SPY = 365.25 * 24 * 3600                      # seconds per year
+    """Subglacial transport capacity (Delaney et al. 2019): Engelund-Hansen rate in a semicircular R-channel whose
+    radius follows from Manning's equation, with Q_w(x) = Q_w_total x / L.  The hydraulic slope is S_hyd if given,
+    else the Shreve gradient if dhdx is given, else the bed slope.
+    Returns the flux min(cap, supply), the capacity and the supply (kg/yr)."""
+    SPY = 365.25 * 24 * 3600
 
     Q_w = np.maximum(Q_w_total * x / x[-1], 1e-10)
     if S_hyd is not None:
@@ -559,16 +457,14 @@ def fluvial_transport(Q_w_total, e_dot, dbdx, dx, x, d_grain=D_GRAIN, dhdx=None,
     q_s     = Phi * np.sqrt((RHO_SED / RHO_W - 1.0) * 9.81 * d_grain**3)  # m²/s
     Q_s_cap = RHO_SED * q_s * 2.0 * r * SPY      # kg/yr
 
-    # erosion supply to fluvial system: (1-α_d) fraction of total erosion
+    # erosion supply to the fluvial system
     Q_s_sup = np.cumsum((1.0 - ALPHA_D) * RHO_R * e_dot * W_GL) * dx  # kg/yr
 
     Q_s_fl = np.minimum(Q_s_cap, Q_s_sup)
     return Q_s_fl, Q_s_cap, Q_s_sup
 
 
-# ---------------------------------------------------------------------------
 # Effective-pressure hydrology, basal melt, frozen fringe, regelation
-# ---------------------------------------------------------------------------
 
 def basal_melt_rate(u_b, tau_b_bar):
     """
@@ -596,23 +492,10 @@ def _cavity_sheet_thickness(N_pa, u_b_mps):
 
 
 def hydrology_1d(x, hb, b, u_b, Q_w_total, dx, W=W_GL):
-    """
-    1-D steady distributed drainage along the flowline (laminar linked-cavity
-    sheet), giving water pressure, effective pressure and the hydraulic
-    gradient that drives channelised sediment transport.
-
-    Water flux per unit width is prescribed by the linear accumulation used
-    elsewhere, q(x) = Q_w(x)/W.  Darcy flow through the sheet,
-        q = -K_SHEET h^3 dphi/dx,     phi = p_w + rho_w g b,
-    is integrated upstream from the terminus, where p_w = 0, with the sheet
-    thickness closed by _cavity_sheet_thickness(N).  At each node the
-    implicit relation N_i = p_i - (phi_i - rho_w g b_i), with phi_i depending
-    on h(N_i), is solved by bracketing.  Effective pressure may become <= 0
-    (water pressure at or above overburden) in overdeepenings, where the sheet
-    opens to h_r and the gradient needed to pass q emerges from continuity.
-
-    Returns (all (NX,)): N (Pa), p_w (Pa), h_sheet (m), S_hyd (-), phi (Pa)
-    """
+    """Steady distributed drainage along the flowline (laminar linked-cavity sheet).  The flux q(x) = Q_w(x)/W passes
+    through a sheet with q = -K_SHEET h^3 dphi/dx, integrated upstream from the terminus (p_w = 0) with h from
+    _cavity_sheet_thickness(N); the implicit relation for N at each node is solved by bracketing.
+    Returns N (Pa), p_w (Pa), h_sheet (m), S_hyd (-), phi (Pa)."""
     n   = len(x)
     L   = x[-1]
     q   = np.maximum(Q_w_total * x / L, 1e-12) / W           # m^2/s
@@ -636,8 +519,7 @@ def hydrology_1d(x, hb, b, u_b, Q_w_total, dx, W=W_GL):
             phi_i = phi[i + 1] + qi * dx / (K_SHEET * h**3)
             return Ni - (base - phi_i)
 
-        # F is monotone increasing in N (h decreases with N).  Expand the
-        # bracket geometrically on both sides until the signs differ.
+        # F increases monotonically with N: expand the bracket until the signs differ.
         lo = -1e3
         while F(lo) > 0.0 and lo > -1e12:
             lo *= 10.0
@@ -645,9 +527,8 @@ def hydrology_1d(x, hb, b, u_b, Q_w_total, dx, W=W_GL):
         while F(hi) < 0.0 and hi < 1e12:
             hi *= 2.0
         N[i]   = brentq(F, lo, hi, xtol=1e-3, maxiter=200)
-        # Water pressure cannot fall below atmospheric: where the sheet can
-        # pass q with less head than the bed slope provides, the flow is
-        # unpressurised (p_w = 0, N = p_i) and the gradient is the bed slope.
+        # p_w cannot fall below atmospheric: where the sheet passes q with less head than the bed slope gives,
+        # the flow is unpressurised (N = p_i) and the gradient is the bed slope.
         if N[i] > p_i[i]:
             N[i] = p_i[i]
         hs[i]  = _cavity_sheet_thickness(N[i], u[i])
@@ -661,29 +542,15 @@ def hydrology_1d(x, hb, b, u_b, Q_w_total, dx, W=W_GL):
 
 
 def supercooling_freeze_on(x, Q_w_total, p_w, phi, dx, W=W_GL):
-    """
-    Glaciohydraulic supercooling from the energy balance of water flowing
-    along the bed at the pressure-melting point (Röthlisberger & Lang 1987;
-    Alley et al. 1998; Creyts & Clarke 2010).  Per unit length of flow path:
-        heat released by viscous dissipation   P_diss = Q_w |dphi/dx|
-        heat needed to follow the melting point P_req  = rho_w c_w C_T Q_w |dp_w/dx|
-    where p_w falls along flow.  Where P_req > P_diss the water supercools
-    and ice freezes on at the rate F = (P_req - P_diss)/L per unit length,
-    i.e. a basal freeze-on rate m_fr = F / (rho_i W) (m ice yr^-1) averaged
-    over the glacier width.  Gradients are centred (np.gradient) so that
-    single-node jumps in the discrete pressure field do not register as
-    supercooled reaches.
-
-    Returns (m_fr >= 0 (NX,), supercooled mask (NX,)).
-    """
+    """Glaciohydraulic supercooling (Rothlisberger and Lang 1987; Alley et al. 1998): where the heat needed to follow the
+    melting point exceeds viscous dissipation, ice freezes on at a width-averaged rate m_fr (m ice yr^-1).
+    Returns (m_fr >= 0, supercooled mask)."""
     Q_w  = np.maximum(Q_w_total * x / x[-1], 1e-12)            # m^3/s
     dphi = np.gradient(phi, x)
     dpw  = np.gradient(p_w, x)
     P_diss = Q_w * np.maximum(-dphi, 0.0)                         # W/m
     P_req  = RHO_W * C_W * C_T * Q_w * np.maximum(-dpw, 0.0)      # W/m
-    # Only pressurised reaches: where p_w sits on the atmospheric floor the
-    # flow is open-channel and the pressure-melting argument does not apply;
-    # a drop onto the floor is a clamp, not an along-flow pressure gradient.
+    # Pressurised reaches only; a drop onto the atmospheric floor is a clamp, not a pressure gradient.
     pressurised = p_w > 1.0
     pressurised[:-1] &= pressurised[1:]
     P_req  = np.where(pressurised, P_req, 0.0)
@@ -704,8 +571,7 @@ def rouse_number(u_star, d_grain):
 
 
 ROUSE_SUSP = 2.5                # Rouse number above which grains move only as bedload
-BED_ONLY_ENTRAINMENT = True     # fringe and freeze-on draw only on bed sediment (local erosion, till, melt-out),
-                                # as in Pierce et al. (2026); False: channel bedload also feeds the bed pool (Rouse criterion)
+BED_ONLY_ENTRAINMENT = True     # fringe and freeze-on draw only on bed sediment (Pierce et al. 2026); False also feeds channel bedload to the bed pool
 ROUSE_WASH = 0.8                # Rouse number below which grains are fully suspended (wash load)
 
 
@@ -725,17 +591,10 @@ def channel_shear_velocity(Q_w_total, x, S_hyd):
 
 
 def sheet_transport_capacity(q, h_sheet, d_grain, W=W_GL):
-    """
-    Capacity (kg/yr) of the distributed sheet where channels are frozen shut.
-    Bed shear stress from the sheet velocity u = q/h, tau = (F_DW/8) rho_w u^2
-    (Darcy-Weisbach; turbulent at Re ~ 1e4).  Grains with Rouse number
-    w_s/(kappa u*) < ROUSE_SUSP travel in suspension and pass without a
-    capacity limit; coarser grains move as bedload with the Engelund-Hansen
-    rate over a fraction F_SHEET of the width, through which the water
-    flux is also concentrated.  Silt passes; sand and gravel are deposited.
-    """
-    # the sediment-carrying flow occupies a fraction F_SHEET of the width, so
-    # its flux per unit width is q / F_SHEET (consistent with the capacity below)
+    """Capacity (kg/yr) of the distributed sheet where channels are frozen shut.  Grains with Rouse number below
+    ROUSE_SUSP are suspended and pass; coarser grains move as bedload at the Engelund-Hansen rate over a fraction
+    F_SHEET of the width."""
+    # the sediment-carrying flow occupies a fraction F_SHEET of the width
     u      = q / F_SHEET / np.maximum(h_sheet, 1e-6)
     tau    = F_DW / 8.0 * RHO_W * u**2
     u_star = np.sqrt(tau / RHO_W)
@@ -763,23 +622,8 @@ def _fringe_terms(theta, N_pa, G, phi=PHI_TILL):
 
 
 def fringe_steady_thickness(N_pa, m_myr):
-    """
-    Steady-state frozen-fringe thickness H_f (m) at one node.
-
-    Fringe thermodynamics after Meyer et al. (2019, 2023) as implemented by
-    Pierce et al. (2026):
-        G     = -m rho_i L / k_i                  (temperature gradient, K/m)
-        theta = 1 - G H_f / (T_m - T_f) >= 1      (non-dimensional undercooling)
-        V     = V_n Num(theta, N) / Den(theta)    (heave rate, m/s)
-        dH_f/dt = (-m - V) / (phi S),   S = 1 - theta^(-beta)
-    At steady state V(theta) = -m.  V(1) = V_n (1 - N/p_f)/Pi: a fringe exists
-    only if V(1) < -m, i.e. the effective pressure exceeds the entry pressure
-    by enough to drive infiltration faster than basal melt removes it.
-    Num increases monotonically with theta, so the root is bracketed between
-    theta = 1 and the theta at which Num = 0.
-
-    Returns (H_f, theta); H_f = 0, theta = 1 where no fringe forms.
-    """
+    """Steady frozen-fringe thickness H_f (m) at one node (Meyer et al. 2019, 2023; Pierce et al. 2026), from V(theta) = -m
+    with theta the undercooling.  Returns (H_f, theta); H_f = 0 and theta = 1 where no fringe forms."""
     m = m_myr / SPY
     if m <= 0.0 or N_pa <= 0.0:
         return 0.0, 1.0
@@ -817,41 +661,11 @@ def regelation_rate(theta, H_d):
 
 def steady_routing(u_b, Qw, dbdx, dx, x, hb, b, d_grain=D_GRAIN,
                    max_iter=30, tol=1e-3, f_w=F_W, W=W_GL, c_slide=C_SLIDE, tau_b=None):
-    """
-    Full steady-state sediment routing with effective-pressure hydrology,
-    frozen-fringe entrainment and a regelation-fed dispersed layer, solved in
-    one downstream marching pass per shielding iteration.
-
-    Pathways at each node (all fluxes kg/yr):
-      erosion (shielded) -> bed supply
-      bed supply + upstream channel + upstream till deformation
-         <-> frozen fringe (uptake where the equilibrium fringe thickens
-             downstream, release where it thins)
-      fringe -> dispersed layer by regelation (where a fringe exists)
-      dispersed -> bed by melt-out (where no fringe exists)
-      bed -> channel (at capacity) / till (deformation, capped) / accumulation
-    Fringe and dispersed sediment are advected with u_b and exported at the
-    terminus; both are limited by the sediment actually available.
-
-    f_w : water-pressure fraction prescribing the fringe effective pressure
-          N_fringe = (1 - f_w) p_i (borehole-constrained); None uses the sheet
-          model's N.  The sheet model always provides the hydraulic gradient
-          (continuity) and the supercooling energy balance.
-    W   : glacier width (m); c_slide : Weertman coefficient used for the BP
-          solve of this glacier (needed to recover tau_b from u_b).
-
-    Only bed sediment can be entrained into basal ice: local erosion
-    products, till arriving by deformation, melt-out from the dispersed layer
-    and channel-borne grains that travel as bedload (Rouse number >=
-    ROUSE_SUSP in the R-channel).  Suspended channel load passes the node.
-
-    Returns a dict of (NX,) arrays and scalars:
-      Q_fl, Q_cap, Q_def, Q_acc, H_till, e_dot, shield,
-      Q_fr (fringe flux), Q_d (dispersed flux), H_f, H_f_eq, H_d, theta,
-      N (sheet), N_fringe, p_w, h_sheet, S_hyd, m_basal, m_freeze,
-      supercooled, H_accreted (cumulative frozen-on ice thickness, m),
-      v_reg, uptake_fr, release_fr, accretion_fr
-    """
+    """Steady sediment routing along the flowline, one downstream marching pass per shielding iteration.  At each node the bed
+    pool (local erosion, till arriving by deformation, melt-out and channel bedload) exchanges with the frozen fringe and
+    the dispersed layer and passes to the channel (at capacity), to till deformation (capped) or to accumulation.
+    f_w prescribes the fringe effective pressure N = (1 - f_w) p_i; None uses the sheet model's N.
+    Returns a dict of (NX,) arrays (Q_fl, Q_cap, Q_def, Q_acc, H_till, e_dot, shield, Q_fr, Q_d, H_f, H_d, N, p_w, S_hyd, ...)."""
     n = len(u_b)
     N, p_w, h_sheet, S_hyd, phi = hydrology_1d(x, hb, b, u_b, Qw, dx, W=W)
     p_i = RHO_ICE * G_ACC * hb
@@ -906,9 +720,7 @@ def steady_routing(u_b, Qw, dbdx, dx, x, hb, b, d_grain=D_GRAIN,
 
         for i in range(n):
             fresh = RHO_R * e_dot[i] * W * dx
-            # Bed pool: local erosion products, till arriving by deformation,
-            # and channel load only if it travels as bedload.  Suspended
-            # channel load stays in the water and passes the node.
+            # Bed pool: local erosion, till arriving by deformation, and channel bedload.
             bed  = fresh + Q_def_in + chan_bedload[i] * Q_fl_in
             susp = (1.0 - chan_bedload[i]) * Q_fl_in
 
@@ -917,17 +729,13 @@ def steady_routing(u_b, Qw, dbdx, dx, x, hb, b, d_grain=D_GRAIN,
                 melt = min(c_d * max(m_net[i], 0.0) * dx, Qd)
                 Qd -= melt; bed += melt
 
-            # --- supercooling: bed sediment accretes into basal ice at the
-            #     freeze-on rate (Lawson et al. 1998 stratified facies)
+            # --- supercooling: bed sediment accretes into basal ice (Lawson et al. 1998)
             if m_fr[i] > 0.0:
                 acc[i] = min(c_fr * m_fr[i] * dx, bed)
                 Qf += acc[i]; bed -= acc[i]
 
-            # --- frozen fringe exchange with the bed: uptake from the bed
-            #     pool to the equilibrium thickness where it thickens
-            #     downstream; release where it thins, no faster than basal
-            #     melt removes ice.  Infiltration is a pore-scale process:
-            #     grains coarser than D_FRINGE_MAX are not taken up.
+            # --- frozen fringe exchange with the bed: uptake where the equilibrium thickness grows, release where it thins;
+            #     grains coarser than D_FRINGE_MAX are not taken up
             Qf_eq = c_fr * np.abs(u_b[i]) * H_f_eq[i]
             if Qf_eq > Qf and eta_fringe > 0.0:
                 upt[i] = eta_fringe * min(Qf_eq - Qf, bed)
@@ -954,9 +762,7 @@ def steady_routing(u_b, Qw, dbdx, dx, x, hb, b, d_grain=D_GRAIN,
             if available >= Q_cap[i]:
                 Q_fl[i]    = Q_cap[i]
                 sup_coeff  = prod[i] * W * dx
-                # available = Q_run + fresh + net, where net is the fringe /
-                # dispersed exchange at this node (uptake < 0, release > 0).
-                # The till balance keeps net fixed while shielding varies H.
+                # available = Q_run + fresh + net, with net the fringe and dispersed exchange (uptake < 0, release > 0)
                 net = available - Q_run - fresh
                 excess_inf = Q_run + net + sup_coeff * SHIELD_MIN - Q_cap[i]
                 if excess_inf > B_def[i] * H_DEF_MAX:
@@ -1034,18 +840,8 @@ def budget_from_routing(r, dx):
 
 
 def check_mass_conservation(budget, label='', tol=0.01):
-    """
-    Print the sediment mass budget and check conservation at steady state.
-
-    The total erosional flux must equal
-      (1) fluvial outlet        Q_fl   (channel flux at the penultimate node)
-      (2) deformation outlet    Q_def  (till advected past the terminus)
-      (3) dispersed outlet      Q_disp (melt-out + englacial advection)
-      (4) till accumulation     Q_acc  (sum over trapping nodes; 0 if none)
-    The residual is reported against the tolerance.
-
-    Returns True if mass is conserved within tol (relative), False otherwise.
-    """
+    """Print the sediment budget and check that the erosion equals the fluvial, deformation and dispersed outlets plus the
+    till accumulation.  Returns True if the relative residual is within tol."""
     b = budget
     Q_fr = b.get('Q_fr', 0.0)
     residual = b['Q_fl'] + b['Q_def'] + Q_fr + b['Q_disp'] + b['Q_acc'] - b['Q_ero']
@@ -1077,21 +873,8 @@ def check_mass_conservation(budget, label='', tol=0.01):
 
 
 def run_glacier_diagnostics(d_grain=D_GRAIN, tag=None, rows='all'):
-    """
-    Solve the Blatter-Pattyn flow and coupled sediment model for the three
-    real diagnostic glaciers (Arolla, Franz Josef, Gornergletscher) and plot
-    them side by side in one figure: rows are panel type (velocity profile,
-    2D velocity field, erosion rate, dispersed-layer thickness, sediment
-    fluxes), columns are glaciers.
-
-    d_grain : representative grain diameter (m) used for the erosion/till/
-        fluvial panels (rows c, d, e); the velocity panels (a, b) do not
-        depend on grain size.
-    tag     : filename suffix (default: derived from d_grain).
-    rows    : 'all' (five rows) or 'sediment' (rows c-e only; the velocity
-              rows do not depend on grain size and are shown once, in the
-              fine-grain figure).
-    """
+    """Steady-state diagnostics for the three glaciers, one column per glacier.  d_grain is the grain diameter (m),
+    tag a filename suffix, and rows 'all' or 'sediment' (rows c-e only)."""
     if tag is None:
         tag = f'{d_grain*1000:.2f}mm'.replace('.', 'p') if d_grain >= 1e-4 \
             else f'{d_grain*1e6:.0f}um'
@@ -1216,9 +999,7 @@ def run_glacier_diagnostics(d_grain=D_GRAIN, tag=None, rows='all'):
 
         # (e) sediment fluxes
         ax = axes[4, col]
-        # channel capacity as a light band behind the fluxes, on a logarithmic axis so that
-        # it is shown in full. Nodes with a zero capacity fall below the axis, and nodes with
-        # an unbounded capacity (the sheet carries all the suspended load) are left blank.
+        # channel capacity as a light band on a log axis; zero capacity falls below the axis, unbounded capacity is blank
         ymin = 1e-3 * Q_s_ero[-1] * 1e-3
         cap_t = Q_s_cap * 1e-3
         cap_t = np.where(cap_t > 1e15, np.nan, np.maximum(cap_t, 1e-2 * ymin))
@@ -1244,7 +1025,7 @@ def run_glacier_diagnostics(d_grain=D_GRAIN, tag=None, rows='all'):
         for col in range(3):
             axes[2, col].set_title(axes[0, col].get_title(), fontsize=20)
             axes[0, col].remove(); axes[1, col].remove()
-        axes = axes[2:, :]                  # the canvas keeps its five-row height, so that the panels have the size of those of the fine-grain figure
+        axes = axes[2:, :]                  # the canvas keeps its five-row height
 
     panel_labels = 'abcdefghijklmno'
     for row in range(axes.shape[0]):
@@ -1264,12 +1045,8 @@ def run_glacier_diagnostics(d_grain=D_GRAIN, tag=None, rows='all'):
 
 
 def compare_glaciers():
-    """
-    Export as a fraction of the potential (unshielded) erosion as a function of
-    grain size D, one panel per glacier, split into channel, till deformation
-    and basal ice (fringe + dispersed).  The remainder is stored; the brown
-    line is the actual erosion as a fraction of the potential (till shielding).
-    """
+    """Export as a fraction of the potential (unshielded) erosion against grain size D, split into channel, till deformation
+    and basal ice.  The remainder is stored."""
     D_vals = np.logspace(np.log10(10e-6), np.log10(0.40), 30)
     D_vals = np.sort(np.unique(np.concatenate([D_vals, [D_FINE, D_GRAIN]])))
     D_mm   = D_vals * 1000
@@ -1289,9 +1066,7 @@ def compare_glaciers():
         u_b = U[:, 0]
 
         T_arr, Tfl_arr, Tdef_arr, shield_arr = [], [], [], []
-        # potential (unshielded) erosion of the budget domain: shielding by till
-        # lowers the actual erosion, and a ratio taken to the shielded erosion
-        # rises again at coarse sizes when the deformation flux is capped
+        # potential (unshielded) erosion of the budget domain
         Q_pot = RHO_R * W * np.sum(K_G * np.abs(u_b[:-1])**L_EXP) * dx
         for D in D_vals:
             r   = steady_routing(u_b, Qw, dbdx, dx, x, hb, b, d_grain=D, W=W, c_slide=Cs)

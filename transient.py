@@ -12,9 +12,8 @@ equilibrium-line altitude ELA_0; the forcing ELA(t) = ELA_0 + dE(t) perturbs thi
 import numpy as np
 import blatter_flow as bf
 
-# Piecewise-linear balance, beta_abl below the ELA and beta_acc above it (yr^-1), with a cap (m/yr ice).
-# Alps: elevation-band balances of the World Glacier Monitoring Service give beta_abl 0.004-0.010 and
-# beta_acc/beta_abl 0.1-0.3.  Franz Josef Glacier: Anderson et al. (2006), one slope with a cap and ELA_0 = 1800 m.
+# Piecewise-linear balance, beta_abl below the ELA and beta_acc above it (yr^-1), capped (m/yr ice); WGMS elevation bands
+# give beta_abl 0.004-0.010 and beta_acc/beta_abl 0.1-0.3, Franz Josef Glacier follows Anderson et al. (2006).
 MELT_H_REF = 20.0     # m; ice thinner than this contributes proportionally less melt to Q_w
 BETA_ALPS = dict(beta_abl=0.008, beta_acc=0.0024, cap=2.0, bounds=(0.004, 0.012), fit=False)
 BETA_FJ   = dict(beta_abl=0.02, beta_acc=0.02, cap=4.4, bounds=(0.01, 0.03), fit=False, ela0=1800.0)
@@ -58,17 +57,12 @@ class FlowlineIce:
         self.tau0 = self.Tau[:, 0].copy()
         self.t = 0.0
         self.n_bp_fail = 0
-        # steady-state balance of the present geometry.  The raw flux
-        # divergence of a diagnostic solve on a DEM is dominated by bed
-        # roughness, so it is smoothed over SMOOTH_M before use; the residual
-        # m_res = m_steady - m(s; ELA_0) is kept as a fixed spatial correction
-        # (the catchment-integrated balance is carried by the parameterisation).
+        # steady-state balance of the present geometry: the flux divergence of the diagnostic solve is smoothed over SMOOTH_M
+        # and the residual m_res = m_steady - m(s; ELA_0) is kept as a fixed spatial correction.
         from scipy.ndimage import gaussian_filter1d
         from scipy.optimize import brentq
         self.ice0 = self.hb > 1.0
-        # the DEM-scale roughness of the diagnostic flux is removed from the
-        # flux itself (same smoothing used in every later step), so that the
-        # residual balance keeps the geometry EXACTLY steady at t = 0
+        # the same smoothing is applied to the flux in every step, so that the geometry is exactly steady at t = 0
         dQ = self.flux_div(self.U, self.hb)
         self.m_steady = np.where(self.ice0, dQ, 0.0)
         lo, hi = self.h[self.ice0].min() - 500, self.h[self.ice0].max() + 500

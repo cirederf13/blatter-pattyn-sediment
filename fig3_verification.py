@@ -18,11 +18,8 @@ fig, axes = plt.subplots(2, 2, figsize=(13, 9))
 # (a) slab: numerical vs analytical Weertman slab, H/dx = 1
 ax = axes[0, 0]
 xs, dx, hb, U, ok = slab(15000.0, 200.0)
-# Three references for the slab: (i) the exact Stokes solution, (ii) the
-# closed-form solution of the first-order equations on a uniform slab,
-#   u_b = C_s (rho g H tan a)^m,   u_s - u_b = 2A/(n+1) (rho g H tan a)^n H / (1 + 4 tan^2 a)^2,
-# which the solver must reproduce, and the difference between (i) and (ii),
-# which is the error of the first-order approximation at this slope.
+# Slab references: the exact Stokes solution, the closed-form first-order solution that the solver must reproduce,
+# and their difference, the error of the first-order approximation at this slope.
 al = np.arctan(0.2); Hp = 200.0 * np.cos(al); tb = bf.RHO_G * Hp * np.sin(al)
 tT = bf.RHO_G * 200.0 * 0.2
 u_slide_ex = bf.C_SLIDE * tb**bf.M_SLIDE
