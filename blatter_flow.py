@@ -31,7 +31,7 @@ AROLLA_FILE     = DATA_DIR / 'arolla.dat'
 FRANZJOSEF_FILE = DATA_DIR / 'franzjosef' / 'Bedrock_Anderson2014.csv'
 GORNER_FILE     = DATA_DIR / 'gorner' / 'gorner.dat'
 QW_FJ     = 50.0    # annual-mean water discharge (m^3/s), Franz Josef Glacier (Herman et al. 2015)
-QW_GORNER = 7.0     # Gornergletscher (De Doncker and Herman 2026)
+QW_GORNER = 7.0     # Gornergletscher (De Doncker et al. 2026)
 QW_REF    = 3.0     # Haut Glacier d'Arolla (Swift et al. 2005)
 
 # Width (m), number of nodes along the flowline, shape factor f on the driving stress and Weertman

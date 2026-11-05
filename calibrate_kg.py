@@ -1,6 +1,6 @@
 """Calibrate K_g (m^(1-l) yr^(l-1)) of each glacier for l = 1, 2 and 3, so that the steady fluvial export at 63 um equals the observed
 suspended-sediment discharge: Haut Glacier d'Arolla 5e7 kg/yr (Swift et al. 2002), Franz Josef Glacier 7.7e8 (Herman et al. 2015),
-Gornergletscher 1e8 (De Doncker and Herman 2026).  The l = 2 values are K_G_BY_LOADER in blatter_flow.py."""
+Gornergletscher 1e8 (De Doncker et al. 2026).  The l = 2 values are K_G_BY_LOADER in blatter_flow.py."""
 import numpy as np
 from scipy.optimize import brentq
 import blatter_flow as bf

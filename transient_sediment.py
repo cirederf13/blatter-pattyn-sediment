@@ -12,7 +12,7 @@ reservoirs are advanced in time instead of being set to equilibrium:
 All masses in kg per node.  A two-component tracer (fresh / stored) rides on
 every reservoir and flux: sediment eroded during the run is "fresh"; the
 initial reservoir content is "stored".  f_stor(t) = stored share of the
-export is the quantity compared with De Doncker & Herman (2026).
+export is the quantity compared with De Doncker et al. (2026).
 Till left on deglaciated nodes is counted separately ("exposed").
 """
 import numpy as np

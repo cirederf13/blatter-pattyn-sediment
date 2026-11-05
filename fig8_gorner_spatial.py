@@ -1,4 +1,4 @@
-"""Gornergletscher: spatial comparison along the flowline of the provenance-derived erosion (De Doncker & Herman 2026, weighted median map),
+"""Gornergletscher: spatial comparison along the flowline of the provenance-derived erosion (De Doncker et al. 2026, weighted median map),
 the observed and modelled velocity, the modelled erosion, and the model's trapping nodes."""
 import numpy as np, matplotlib.pyplot as plt, blatter_flow as bf
 a = np.loadtxt(bf.DATA_DIR / 'gorner' / 'gorner_flowline.csv', delimiter=',', skiprows=1)   # distance, bed, surface, velocity, uncertainty, provenance erosion

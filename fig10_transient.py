@@ -37,7 +37,7 @@ def main():
         a_u.plot(t, u / u[0], color=col, lw=1.8, label=f'{u[0]:.0f} m/yr initially')
     a_exp.set_ylabel('export / initial'); a_stor.set_ylabel('storage-derived fraction')
     a_stor.axhline(0.35, color='0.4', ls='-.', lw=1.0)
-    a_stor.text(52, 0.36, 'De Doncker & Herman 2026 (Gorner, 35 %)', fontsize=8, color='0.3')
+    a_stor.text(52, 0.36, 'De Doncker et al. 2026 (Gorner, 35 %)', fontsize=8, color='0.3')
     a_da.set_ylabel(r'$\mathrm{Da_{sed}}$'); a_da.set_yscale('log'); a_da.axhline(1.0, color='k', ls=':', lw=1.0)
     a_u.set_ylabel('median sliding speed / initial')
     for ax in (a_da, a_u):
