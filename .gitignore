@@ -1,0 +1,6 @@
+_cache/
+logs/
+output/
+figures/
+__pycache__/
+*.pyc
