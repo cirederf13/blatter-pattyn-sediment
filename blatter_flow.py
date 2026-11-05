@@ -88,7 +88,6 @@ W_GL    = 500.0                   # glacier width (m), constant
 
 # Dispersed sediment layer (storage model, Pierce et al. 2026)
 C_D      = 0.03    # dispersed layer sediment mass fraction
-ALPHA_D  = 0.1     # legacy, used only in the supply term of fluvial_transport
 
 # Subglacial fluvial transport (Engelund-Hansen / Delaney et al. 2019 JGR-ES)
 D_GRAIN  = 0.01     # coarse reference grain diameter (m): fine gravel / bedload
@@ -458,7 +457,7 @@ def fluvial_transport(Q_w_total, e_dot, dbdx, dx, x, d_grain=D_GRAIN, dhdx=None,
     Q_s_cap = RHO_SED * q_s * 2.0 * r * SPY      # kg/yr
 
     # erosion supply to the fluvial system
-    Q_s_sup = np.cumsum((1.0 - ALPHA_D) * RHO_R * e_dot * W_GL) * dx  # kg/yr
+    Q_s_sup = np.cumsum(RHO_R * e_dot * W_GL) * dx  # kg/yr
 
     Q_s_fl = np.minimum(Q_s_cap, Q_s_sup)
     return Q_s_fl, Q_s_cap, Q_s_sup

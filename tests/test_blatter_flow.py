@@ -52,7 +52,7 @@ def test_fluvial_supply_limited():
     Q_s_fl, Q_s_cap, _ = bf.fluvial_transport(
         500.0, e_dot, DBDX, dx, x, d_grain=0.001)
 
-    Q_supply = np.cumsum((1.0 - bf.ALPHA_D) * bf.RHO_R * e_dot * bf.W_GL) * dx
+    Q_supply = np.cumsum(bf.RHO_R * e_dot * bf.W_GL) * dx
 
     assert np.all(Q_s_cap[1:] > Q_s_fl[1:]), "Capacity must exceed flux at nodes 1..NX-1"
     np.testing.assert_allclose(Q_s_fl[1:], Q_supply[1:], rtol=1e-10)
@@ -72,33 +72,6 @@ def test_fluvial_transport_limited():
     assert np.all(Q_s_sup[5:] > Q_s_cap[5:]), "Supply must exceed capacity"
     np.testing.assert_allclose(
         Q_s_fl, np.minimum(Q_s_cap, Q_s_sup), rtol=1e-12)
-
-
-# Till shielding, transport-limited: closed-form H_till
-
-
-# Till shielding, supply-limited: no till, no shielding
-
-
-# Dispersed layer: linear steady state when entrainment exceeds melt-out
-
-
-# Dispersed layer: no layer forms when melt-out exceeds entrainment
-
-
-# Coupled solve: supply-limited everywhere
-
-
-# Coupled solve: transport-limited nodes at capacity
-
-
-# Coupled solve: sediment conservation along the flowline
-
-
-# Coupled solve: a genuine trap reports accumulation, not a discarded flux
-
-
-# Full budget closes with Da_sed = 1 when nothing accumulates
 
 
 def test_hydrology_darcy_consistency_and_bounds():
